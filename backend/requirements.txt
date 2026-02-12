@@ -3,6 +3,10 @@ uvicorn>=0.27.0
 python-multipart
 requests
 agentscope
-tree-sitter
+tree-sitter>=0.21.0
+tree-sitter-python
+tree-sitter-typescript
+tree-sitter-javascript
 chromadb
 pydantic>=2.0.0
+pytest
