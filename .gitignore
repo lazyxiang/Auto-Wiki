@@ -8,7 +8,6 @@ node_modules/
 venv/
 ENV/
 bin/
-lib/
 develop-eggs/
 dist/
 downloads/
