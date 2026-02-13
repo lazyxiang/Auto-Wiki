@@ -7,10 +7,8 @@ class VectorStorage:
     def __init__(self, persistence_path: str = None):
         if persistence_path is None:
             # Default to a path compatible with both Docker (/app/data) and Local (./data)
-            # relative to the running working directory (expected to be 'backend/' or '/app')
             persistence_path = os.getenv("CHROMA_DB_PATH", os.path.join(os.getcwd(), "data", "chromadb"))
 
-        # Ensure directory exists to prevent "file not found" or permission issues if parent missing
         if not os.path.exists(persistence_path):
             os.makedirs(persistence_path, exist_ok=True)
 
@@ -62,6 +60,18 @@ class VectorStorage:
                 })
         
         return formatted_results
+
+    def clear_all(self):
+        """
+        Deletes all entries in the collection.
+        """
+        count = self.collection.count()
+        if count > 0:
+            # Delete by matching all IDs (ChromaDB requirement for bulk delete)
+            all_ids = self.collection.get()['ids']
+            if all_ids:
+                self.collection.delete(ids=all_ids)
+        return count
 
     def get_stats(self):
         return {

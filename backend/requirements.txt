@@ -10,3 +10,4 @@ tree-sitter-javascript
 chromadb
 pydantic>=2.0.0
 pytest
+GitPython

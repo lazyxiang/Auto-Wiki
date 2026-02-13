@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 
 class IngestRequest(BaseModel):
-    path: str
+    repo_url: str

@@ -1,5 +1,8 @@
 import os
+import shutil
+import uuid
 from typing import List
+import git
 from .chunker import CodeChunker
 from .storage import VectorStorage
 
@@ -8,25 +11,51 @@ class IngestionService:
         self.chunker = CodeChunker()
         self.storage = VectorStorage()
         
+    def ingest_project(self, repo_url: str):
+        """
+        Ingests a project by cloning from a git URL.
+        """
+        temp_id = str(uuid.uuid4())[:8]
+        target_path = os.path.join(os.getcwd(), "temp_repos", temp_id)
+        
+        try:
+            self._clone_repo(repo_url, target_path)
+            stats = self.ingest_directory(target_path)
+            stats["repo_url"] = repo_url
+            return stats
+        finally:
+            if os.path.exists(target_path):
+                shutil.rmtree(target_path)
+
+    def _clone_repo(self, url: str, target_dir: str):
+        """Clones a git repo to target_dir. Supports SSH."""
+        if os.path.exists(target_dir):
+            shutil.rmtree(target_dir)
+        
+        print(f"Cloning {url} to {target_dir}...")
+        
+        # Configure env to ignore strict host key checking for SSH
+        # This allows cloning from github.com (or others) without pre-populating known_hosts in Docker
+        env = os.environ.copy()
+        env["GIT_SSH_COMMAND"] = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+        
+        git.Repo.clone_from(url, target_dir, depth=1, env=env)
+        print("Clone complete.")
+
     def ingest_directory(self, root_path: str):
         """
-        Recursively scans a directory, chunks code, and saves to Vector DB.
+        Recursively scans a directory, chunks content, and saves to Vector DB.
         """
-        # Resolve path: Handle relative paths (./, ../) and absolute paths
-        # If running in Docker, /app is absolute. If local, ./ is relative to cwd.
         abs_path = os.path.abspath(root_path)
-
-        if not os.path.exists(abs_path):
-            raise FileNotFoundError(f"Directory not found: {root_path} (Resolved: {abs_path})")
-
         all_chunks = []
         file_count = 0
+        code_files = 0
+        doc_files = 0
         
-        print(f"Starting ingestion for: {abs_path}")
+        code_chunks_count = 0
+        doc_chunks_count = 0
         
         for dirpath, dirnames, filenames in os.walk(abs_path):
-            # Basic ignore logic (can be improved with pathspec)
-            # Modify dirnames in-place to skip ignored directories
             dirnames[:] = [d for d in dirnames if not self._is_ignored(d)]
             
             for filename in filenames:
@@ -34,26 +63,45 @@ class IngestionService:
                     continue
                     
                 file_path = os.path.join(dirpath, filename)
+                # Calculate relative path for stable ID generation
+                rel_path = os.path.relpath(file_path, abs_path)
                 
-                # Chunk file
-                chunks = self.chunker.chunk_file(file_path)
+                # Pass rel_path to chunker
+                chunks = self.chunker.chunk_file(file_path, rel_path=rel_path)
                 if chunks:
                     all_chunks.extend(chunks)
                     file_count += 1
                     
-        # Save all chunks (in a real app, do batching)
+                    # Count logic
+                    is_doc_file = False
+                    for c in chunks:
+                        if c['metadata'].get('type') == 'documentation':
+                            doc_chunks_count += 1
+                            is_doc_file = True
+                        else:
+                            code_chunks_count += 1
+                            
+                    if is_doc_file:
+                        doc_files += 1
+                    else:
+                        code_files += 1
+                    
         if all_chunks:
             self.storage.save_chunks(all_chunks)
             
         return {
             "files_processed": file_count,
-            "chunks_generated": len(all_chunks)
+            "code_files": code_files,
+            "doc_files": doc_files,
+            "chunks_generated": len(all_chunks),
+            "code_chunks": code_chunks_count,
+            "doc_chunks": doc_chunks_count
         }
 
     def _is_ignored(self, name: str) -> bool:
         """Simple ignore list."""
         ignored = {
             '.git', '__pycache__', 'node_modules', '.next', 'venv', '.venv', 
-            '.DS_Store', 'dist', 'build', '.pytest_cache', 'data'
+            '.DS_Store', 'dist', 'build', '.pytest_cache', 'data', 'temp_repos'
         }
         return name in ignored or name.startswith('.')

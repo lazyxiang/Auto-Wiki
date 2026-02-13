@@ -15,4 +15,9 @@ export interface SearchResult {
 export interface IngestStats {
   files_processed: number;
   chunks_generated: number;
+  code_files: number;
+  doc_files: number;
+  code_chunks: number;
+  doc_chunks: number;
+  repo_url?: string;
 }
