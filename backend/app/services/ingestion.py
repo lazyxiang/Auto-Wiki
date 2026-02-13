@@ -12,15 +12,19 @@ class IngestionService:
         """
         Recursively scans a directory, chunks code, and saves to Vector DB.
         """
-        if not os.path.exists(root_path):
-            raise FileNotFoundError(f"Directory not found: {root_path}")
+        # Resolve path: Handle relative paths (./, ../) and absolute paths
+        # If running in Docker, /app is absolute. If local, ./ is relative to cwd.
+        abs_path = os.path.abspath(root_path)
+
+        if not os.path.exists(abs_path):
+            raise FileNotFoundError(f"Directory not found: {root_path} (Resolved: {abs_path})")
 
         all_chunks = []
         file_count = 0
         
-        print(f"Starting ingestion for: {root_path}")
+        print(f"Starting ingestion for: {abs_path}")
         
-        for dirpath, dirnames, filenames in os.walk(root_path):
+        for dirpath, dirnames, filenames in os.walk(abs_path):
             # Basic ignore logic (can be improved with pathspec)
             # Modify dirnames in-place to skip ignored directories
             dirnames[:] = [d for d in dirnames if not self._is_ignored(d)]

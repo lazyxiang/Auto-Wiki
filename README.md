@@ -78,6 +78,30 @@ graph TD
     -   **Frontend:** Open [http://localhost:3000](http://localhost:3000)
     -   **Backend API Docs:** Open [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### Running Locally (No Docker)
+
+For development or debugging without Docker:
+
+**1. Backend**
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+**2. Frontend**
+
+Open a new terminal:
+
+```bash
+cd frontend
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
 ## 📖 Documentation
 
 For more detailed information, please refer to the documentation in the `docs/` folder:

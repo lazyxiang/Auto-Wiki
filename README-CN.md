@@ -78,6 +78,30 @@ graph TD
     -   **前端界面:** 打开 [http://localhost:3000](http://localhost:3000)
     -   **后端 API 文档:** 打开 [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### 本地运行 (无 Docker)
+
+若需在本地直接运行代码（如调试目的）：
+
+**1. 后端 (Backend)**
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+**2. 前端 (Frontend)**
+
+打开新的终端窗口：
+
+```bash
+cd frontend
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
 ## 📖 相关文档
 
 更多详细信息，请参阅 `docs/` 目录下的文档：

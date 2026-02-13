@@ -4,7 +4,16 @@ import chromadb
 from chromadb.config import Settings
 
 class VectorStorage:
-    def __init__(self, persistence_path: str = "/app/data/chromadb"):
+    def __init__(self, persistence_path: str = None):
+        if persistence_path is None:
+            # Default to a path compatible with both Docker (/app/data) and Local (./data)
+            # relative to the running working directory (expected to be 'backend/' or '/app')
+            persistence_path = os.getenv("CHROMA_DB_PATH", os.path.join(os.getcwd(), "data", "chromadb"))
+
+        # Ensure directory exists to prevent "file not found" or permission issues if parent missing
+        if not os.path.exists(persistence_path):
+            os.makedirs(persistence_path, exist_ok=True)
+
         self.client = chromadb.PersistentClient(path=persistence_path)
         
         # Create or get collection
