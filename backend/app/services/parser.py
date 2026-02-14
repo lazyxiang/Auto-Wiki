@@ -72,9 +72,113 @@ class CodeParser:
             
         if language_name == 'python':
             return self._extract_python_structure(root_node, code, file_path)
+        elif language_name in ['typescript', 'tsx', 'javascript']:
+             return self._extract_ts_structure(root_node, code, file_path)
         
-        # TODO: Implement structure extraction for JS/TS
         return FileStructure(file_path=file_path)
+
+    def _extract_ts_structure(self, root_node: Node, code: str, file_path: str) -> FileStructure:
+        code_bytes = bytes(code, "utf8")
+        
+        imports = self._extract_ts_imports(root_node, code_bytes)
+        classes = self._extract_ts_classes(root_node, code_bytes)
+        functions = self._extract_ts_functions(root_node, code_bytes)
+        
+        return FileStructure(
+            file_path=file_path,
+            imports=imports,
+            classes=classes,
+            functions=functions
+        )
+
+    def _extract_ts_imports(self, root_node: Node, code_bytes: bytes) -> List[ImportInfo]:
+        imports = []
+        cursor = root_node.walk()
+        
+        def visit(cursor):
+            node = cursor.node
+            if node.type == 'import_statement':
+                # import { x } from 'y';
+                # import x from 'y';
+                source_node = node.child_by_field_name('source')
+                module_name = source_node.text.decode('utf8').strip("'\"") if source_node else ""
+                
+                import_clause = node.child_by_field_name('clause')
+                if import_clause:
+                     # Default import?
+                     # Flatten structure for now
+                     pass
+
+                # Simple regex-like extraction from text might be safer given tree complexity, 
+                # but let's try basic named_imports traversal if possible.
+                # For now, just register the module dependency.
+                imports.append(ImportInfo(module=module_name, type="third_party")) 
+
+            if cursor.goto_first_child():
+                while True:
+                    visit(cursor)
+                    if not cursor.goto_next_sibling():
+                        break
+                cursor.goto_parent()
+                
+        visit(cursor)
+        return imports
+
+    def _extract_ts_classes(self, root_node: Node, code_bytes: bytes) -> List[ClassInfo]:
+        classes = []
+        cursor = root_node.walk()
+        
+        def visit(cursor):
+            node = cursor.node
+            if node.type == 'class_declaration':
+                name_node = node.child_by_field_name('name')
+                name = name_node.text.decode('utf8') if name_node else "AnonymousClass"
+                
+                classes.append(ClassInfo(
+                    name=name,
+                    bases=[], # TS 'extends' logic omitted for brevity
+                    code=node.text.decode('utf8'),
+                    start_line=node.start_point[0],
+                    end_line=node.end_point[0]
+                ))
+            
+            if cursor.goto_first_child():
+                while True:
+                    visit(cursor)
+                    if not cursor.goto_next_sibling():
+                        break
+                cursor.goto_parent()
+                
+        visit(cursor)
+        return classes
+
+    def _extract_ts_functions(self, root_node: Node, code_bytes: bytes) -> List[FunctionInfo]:
+        functions = []
+        cursor = root_node.walk()
+        
+        def visit(cursor):
+            node = cursor.node
+            if node.type in ('function_declaration', 'method_definition'):
+                name_node = node.child_by_field_name('name')
+                name = name_node.text.decode('utf8') if name_node else "AnonymousFunction"
+                
+                functions.append(FunctionInfo(
+                    name=name,
+                    args=[], # Args parsing omitted
+                    code=node.text.decode('utf8'),
+                    start_line=node.start_point[0],
+                    end_line=node.end_point[0]
+                ))
+            
+            if cursor.goto_first_child():
+                while True:
+                    visit(cursor)
+                    if not cursor.goto_next_sibling():
+                        break
+                cursor.goto_parent()
+                
+        visit(cursor)
+        return functions
 
     def _extract_python_structure(self, root_node: Node, code: str, file_path: str) -> FileStructure:
         code_bytes = bytes(code, "utf8")

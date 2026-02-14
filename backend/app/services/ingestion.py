@@ -1,11 +1,12 @@
 import os
 import shutil
 import uuid
-from typing import List
+import hashlib
+from typing import List, Dict, Any
 import git
 from .chunker import CodeChunker
 from .storage import VectorStorage
-from .graph_service import GraphService
+from .graph import GraphService
 
 class IngestionService:
     def __init__(self):
@@ -13,17 +14,29 @@ class IngestionService:
         self.storage = VectorStorage()
         self.graph_service = GraphService()
         
-    def ingest_project(self, repo_url: str):
+    def _generate_project_id(self, repo_url: str) -> str:
+        """Generates a consistent project ID from the repo URL."""
+        return hashlib.md5(repo_url.encode('utf-8')).hexdigest()
+
+    def ingest_project(self, repo_url: str) -> Dict[str, Any]:
         """
         Ingests a project by cloning from a git URL.
         """
+        project_id = self._generate_project_id(repo_url)
+        
+        # Overwrite Strategy: Clear existing data for this project
+        self.storage.delete_collection(project_id)
+        self.graph_service.delete_graph(project_id)
+        
+        # Use UUID for temp folder to ensure isolation during clone
         temp_id = str(uuid.uuid4())[:8]
         target_path = os.path.join(os.getcwd(), "temp_repos", temp_id)
         
         try:
             self._clone_repo(repo_url, target_path)
-            stats = self.ingest_directory(target_path)
+            stats = self.ingest_directory(target_path, project_id)
             stats["repo_url"] = repo_url
+            stats["project_id"] = project_id
             return stats
         finally:
             if os.path.exists(target_path):
@@ -44,7 +57,7 @@ class IngestionService:
         git.Repo.clone_from(url, target_dir, depth=1, env=env)
         print("Clone complete.")
 
-    def ingest_directory(self, root_path: str):
+    def ingest_directory(self, root_path: str, project_id: str):
         """
         Recursively scans a directory, chunks content, saves to Vector DB, and builds dependency graph.
         """
@@ -56,9 +69,6 @@ class IngestionService:
         
         code_chunks_count = 0
         doc_chunks_count = 0
-        
-        # Clear existing graph if needed? 
-        # For now, we append/overwrite if same path.
         
         for dirpath, dirnames, filenames in os.walk(abs_path):
             dirnames[:] = [d for d in dirnames if not self._is_ignored(d)]
@@ -76,7 +86,7 @@ class IngestionService:
                 
                 # Update Graph
                 if structure:
-                    self.graph_service.update_dependency_graph(structure)
+                    self.graph_service.update_dependency_graph(project_id, structure)
                 
                 if chunks:
                     all_chunks.extend(chunks)
@@ -97,10 +107,13 @@ class IngestionService:
                         code_files += 1
                     
         if all_chunks:
-            self.storage.save_chunks(all_chunks)
+            self.storage.save_chunks(project_id, all_chunks)
             
         # Build edges after all files are processed
-        self.graph_service.build_edges()
+        self.graph_service.build_edges(project_id)
+        
+        # Get graph stats
+        graph = self.graph_service._get_or_create_graph(project_id)
             
         return {
             "files_processed": file_count,
@@ -109,8 +122,8 @@ class IngestionService:
             "chunks_generated": len(all_chunks),
             "code_chunks": code_chunks_count,
             "doc_chunks": doc_chunks_count,
-            "graph_nodes": self.graph_service.graph.number_of_nodes(),
-            "graph_edges": self.graph_service.graph.number_of_edges()
+            "graph_nodes": graph.number_of_nodes(),
+            "graph_edges": graph.number_of_edges()
         }
 
     def _is_ignored(self, name: str) -> bool:
