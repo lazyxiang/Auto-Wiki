@@ -78,28 +78,62 @@ graph TD
     -   **Frontend:** Open [http://localhost:3000](http://localhost:3000)
     -   **Backend API Docs:** Open [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### Running Locally (No Docker)
+### Local Development & Testing
 
-For development or debugging without Docker:
+For development, debugging, or running tests locally without Docker.
 
-**1. Backend**
+#### Prerequisites
+
+-   [Node.js](https://nodejs.org/) (v18+)
+-   [uv](https://github.com/astral-sh/uv) (Fast Python package installer and resolver)
+
+#### 1. Backend (Python)
+
+We use `uv` for dependency management.
+
+**Setup & Run:**
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
+
+# Run the server
 uvicorn app.main:app --reload --port 8000
 ```
 
-**2. Frontend**
+**Run Tests:**
 
-Open a new terminal:
+```bash
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_parser.py
+```
+
+#### 2. Frontend (Next.js)
+
+**Setup & Run:**
 
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Run development server
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
+**Production Build:**
+
+```bash
+npm run build
+npm start
 ```
 
 ## 📖 Documentation

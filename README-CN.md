@@ -78,28 +78,62 @@ graph TD
     -   **前端界面:** 打开 [http://localhost:3000](http://localhost:3000)
     -   **后端 API 文档:** 打开 [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 本地运行 (无 Docker)
+### 本地开发与测试
 
-若需在本地直接运行代码（如调试目的）：
+用于在不使用 Docker 的情况下进行本地开发、调试或运行测试。
 
-**1. 后端 (Backend)**
+#### 前置条件
+
+-   [Node.js](https://nodejs.org/) (v18+)
+-   [uv](https://github.com/astral-sh/uv) (快速的 Python 包管理工具)
+
+#### 1. 后端 (Backend)
+
+我们使用 `uv` 进行依赖管理。
+
+**安装与运行:**
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+
+# 创建虚拟环境并安装依赖
+uv venv
+source .venv/bin/activate  # Windows 用户: .venv\Scripts\activate
+uv pip install -r requirements.txt
+
+# 启动服务器
 uvicorn app.main:app --reload --port 8000
 ```
 
-**2. 前端 (Frontend)**
+**运行测试:**
 
-打开新的终端窗口：
+```bash
+# 运行所有测试
+pytest
+
+# 运行指定测试文件
+pytest tests/test_parser.py
+```
+
+#### 2. 前端 (Frontend)
+
+**安装与运行:**
 
 ```bash
 cd frontend
+
+# 安装依赖
 npm install
+
+# 启动开发服务器
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
+**生产环境构建:**
+
+```bash
+npm run build
+npm start
 ```
 
 ## 📖 相关文档
