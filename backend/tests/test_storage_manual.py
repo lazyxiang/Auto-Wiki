@@ -2,16 +2,17 @@ import sys
 import os
 import shutil
 
-# Add app to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from app.services.storage import VectorStorage
+from backend.app.services.storage import VectorStorage
 
 def test_vector_storage():
     print("Testing Vector Storage...")
     
     # Use a separate test path to avoid messing with real data
-    test_db_path = "/app/data/test_chroma"
+    # Use relative path (assuming running from repo root or correct CWD)
+    test_db_path = os.path.join(os.getcwd(), "backend/data/test_chroma")
     if os.path.exists(test_db_path):
         shutil.rmtree(test_db_path)
         

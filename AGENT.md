@@ -11,11 +11,13 @@
 2. **Steerability is Key**: Respect the `.autowiki.json` logic above all else.
 3. **Plan Before Coding**: Propose a plan, ask for approval, then implement.
 4. **Security Mindset**: Since this is local/self-hosted, ensure we aren't exposing local file system vulnerabilities via the API.
+5. **Test-Driven Reliability**: Every new feature or refactor MUST include corresponding unit tests. A task is only complete when all unit tests pass.
 
 ## Plan → Execute → Verify
 1. **Plan:** Outline the approach (e.g., "I will create the Tree-sitter parser in `parser.py`").
 2. **Execute:** Implement the feature.
 3. **Verify:**
+    * **Unit Testing:** Write and run new tests for the changes, and ensure existing tests still pass.
     * **ELI5 Audit:** Explain how errors are handled.
     * **Logic Check:** Verify AST parsing isn't just simple regex splitting.
 

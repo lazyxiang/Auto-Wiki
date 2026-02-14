@@ -5,11 +5,13 @@ from typing import List
 import git
 from .chunker import CodeChunker
 from .storage import VectorStorage
+from .graph_service import GraphService
 
 class IngestionService:
     def __init__(self):
         self.chunker = CodeChunker()
         self.storage = VectorStorage()
+        self.graph_service = GraphService()
         
     def ingest_project(self, repo_url: str):
         """
@@ -44,7 +46,7 @@ class IngestionService:
 
     def ingest_directory(self, root_path: str):
         """
-        Recursively scans a directory, chunks content, and saves to Vector DB.
+        Recursively scans a directory, chunks content, saves to Vector DB, and builds dependency graph.
         """
         abs_path = os.path.abspath(root_path)
         all_chunks = []
@@ -54,6 +56,9 @@ class IngestionService:
         
         code_chunks_count = 0
         doc_chunks_count = 0
+        
+        # Clear existing graph if needed? 
+        # For now, we append/overwrite if same path.
         
         for dirpath, dirnames, filenames in os.walk(abs_path):
             dirnames[:] = [d for d in dirnames if not self._is_ignored(d)]
@@ -67,7 +72,12 @@ class IngestionService:
                 rel_path = os.path.relpath(file_path, abs_path)
                 
                 # Pass rel_path to chunker
-                chunks = self.chunker.chunk_file(file_path, rel_path=rel_path)
+                chunks, structure = self.chunker.chunk_and_structure(file_path, rel_path=rel_path)
+                
+                # Update Graph
+                if structure:
+                    self.graph_service.update_dependency_graph(structure)
+                
                 if chunks:
                     all_chunks.extend(chunks)
                     file_count += 1
@@ -89,13 +99,18 @@ class IngestionService:
         if all_chunks:
             self.storage.save_chunks(all_chunks)
             
+        # Build edges after all files are processed
+        self.graph_service.build_edges()
+            
         return {
             "files_processed": file_count,
             "code_files": code_files,
             "doc_files": doc_files,
             "chunks_generated": len(all_chunks),
             "code_chunks": code_chunks_count,
-            "doc_chunks": doc_chunks_count
+            "doc_chunks": doc_chunks_count,
+            "graph_nodes": self.graph_service.graph.number_of_nodes(),
+            "graph_edges": self.graph_service.graph.number_of_edges()
         }
 
     def _is_ignored(self, name: str) -> bool:

@@ -1,10 +1,10 @@
 import sys
 import os
 
-# Add app to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from app.services.parser import CodeParser
+from backend.app.services.parser import CodeParser
 
 def test_python_parsing():
     print("Testing Python Parsing...")

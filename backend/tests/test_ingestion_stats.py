@@ -6,9 +6,9 @@ import shutil
 import sys
 
 # Ensure backend path is in sys.path for imports
-sys.path.append(os.path.join(os.getcwd(), 'backend'))
+# sys.path.append(os.path.join(os.getcwd(), 'backend')) # Removed, assuming running from root with backend in path or as package
 
-from app.services.ingestion import IngestionService
+from backend.app.services.ingestion import IngestionService
 
 class TestIngestionStats(unittest.TestCase):
     def setUp(self):
@@ -19,6 +19,11 @@ class TestIngestionStats(unittest.TestCase):
             self.service = IngestionService()
             # Mock storage to avoid actual DB operations
             self.service.storage = MagicMock()
+            # Mock graph service
+            self.service.graph_service = MagicMock()
+            # Ensure internal graph exists for stats reading
+            self.service.graph_service.graph.number_of_nodes.return_value = 10
+            self.service.graph_service.graph.number_of_edges.return_value = 5
 
     def tearDown(self):
         shutil.rmtree(self.test_dir)
@@ -50,6 +55,15 @@ class TestIngestionStats(unittest.TestCase):
         self.assertEqual(stats['code_chunks'], 2)
         self.assertEqual(stats['doc_chunks'], 2)
         self.assertEqual(stats['chunks_generated'], 4)
+        
+        # 验证 Graph 交互
+        # app.py should trigger update_dependency_graph
+        self.service.graph_service.update_dependency_graph.assert_called()
+        self.service.graph_service.build_edges.assert_called_once()
+        
+        # Verify stats include graph info
+        self.assertEqual(stats['graph_nodes'], 10)
+        self.assertEqual(stats['graph_edges'], 5)
 
     def test_ignore_logic(self):
         # 验证被忽略的文件不计入统计

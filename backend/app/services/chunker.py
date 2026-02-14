@@ -1,7 +1,8 @@
 import hashlib
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple, Union
 from .parser import CodeParser
+from backend.app.schemas import FileStructure
 
 class CodeChunker:
     def __init__(self):
@@ -9,35 +10,46 @@ class CodeChunker:
 
     def chunk_file(self, file_path: str, rel_path: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Reads a file and splits it into chunks.
-        Dispatches to code parser or text chunker based on extension.
-        rel_path: used for stable ID generation (ignores temp absolute path).
+        Legacy wrapper for backward compatibility.
+        """
+        chunks, _ = self.chunk_and_structure(file_path, rel_path)
+        return chunks
+
+    def chunk_and_structure(self, file_path: str, rel_path: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Optional[FileStructure]]:
+        """
+        Reads a file, chunks it, and extracts AST structure.
+        Returns (chunks, structure). Structure is None for non-code files.
         """
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
+            # Should maybe raise or return empty
+            return [], None
             
         path_for_id = rel_path if rel_path else file_path
 
         # Check for text files first
         if self._is_text_file(file_path):
-            return self.chunk_text(file_path, rel_path=path_for_id)
+            chunks = self.chunk_text(file_path, rel_path=path_for_id)
+            return chunks, None
 
         # Fallback to code parsing
         language = self.parser.get_language_from_ext(file_path)
         if not language:
-            return []
+            return [], None
 
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
         except UnicodeDecodeError:
             print(f"Skipping binary or non-utf8 file: {file_path}")
-            return []
+            return [], None
 
+        # Get Structure (new method)
+        structure = self.parser.extract_structure(code, language, path_for_id)
+        
+        # Get Definitions for chunking (using legacy logic or structure?)
+        # For now, use legacy definition extraction to preserve chunking logic exactly
+        # Ideally, we map structure -> chunks.
         root_node = self.parser.parse_code(code, language)
-        if not root_node:
-            return []
-
         definitions = self.parser.extract_definitions(root_node, language, code)
         
         chunks = []
@@ -45,7 +57,7 @@ class CodeChunker:
             chunk = self._create_chunk(d, file_path, path_for_id, language)
             chunks.append(chunk)
             
-        return chunks
+        return chunks, structure
 
     def chunk_text(self, file_path: str, chunk_size: int = 1000, overlap: int = 200, rel_path: str = None) -> List[Dict[str, Any]]:
         """

@@ -2,7 +2,7 @@ import unittest
 import os
 import tempfile
 import shutil
-from app.services.chunker import CodeChunker
+from backend.app.services.chunker import CodeChunker
 
 class TestChunkerDoc(unittest.TestCase):
     def setUp(self):

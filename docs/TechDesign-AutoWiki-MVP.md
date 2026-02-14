@@ -109,6 +109,24 @@ We will prompt VSCode to build the containers first, so you immediately have a r
 
 * Prompt: "I need a dashboard page using Tailwind CSS. It should use a dark theme (slate-900). Create a grid layout for 'Project Cards'. Each card shows a title, description, and 'Last Updated' badge. Use mock data for now."
 
+### Feature 4: AST Dependency Graph & Graph Storage
+
+**Complexity**: ⭐⭐⭐⭐ (Medium-High)
+
+**Basis (PRD)**: "Generate dependency graphs based on AST results... Store in local embedded graph database or file system."
+
+**Implementation Strategy**:
+Start with a lightweight in-memory graph construction (using a library like **NetworkX**) and serialize to JSON/GML for local storage. This avoids heavy graph DB dependencies for the MVP, but the design must be extensible to embedded graph databases (like **KuzuDB**) or server-based ones (like **Neo4j**) for future scaling.
+
+1. **Step A (Graph Schema):**
+    * Prompt: "Create a graph service module. Define a graph structure where nodes represent Files, Classes, and Functions. Edges represent relationships like `DEFINES`, `INHERITS`, and `IMPORTS`."
+
+2. **Step B (Parser Enhancement):**
+    * Prompt: "Update the AST parser to extract `imports` statements and `inheritance` relationships. Return this structural data alongside the code chunks."
+
+3. **Step C (Graph Build & Storage):**
+    * Prompt: "Implement a function to update the dependency graph. It should add nodes from the parser results and resolve import paths to create `IMPORTS` edges between File nodes. Ensure the graph is persisted to the local data directory."
+
 ## 🤖 AI Assistance & Audit Strategy
 
 ### How to Audit Code (Your "Architect" Role)

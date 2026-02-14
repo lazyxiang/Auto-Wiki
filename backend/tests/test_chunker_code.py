@@ -2,7 +2,7 @@ import unittest
 import os
 import tempfile
 import shutil
-from app.services.chunker import CodeChunker
+from backend.app.services.chunker import CodeChunker
 
 class TestChunkerCode(unittest.TestCase):
     def setUp(self):
@@ -45,6 +45,21 @@ def top_level_func():
         path = self.create_test_file("data.bin", "\x00\x01\x02")
         chunks = self.chunker.chunk_file(path, rel_path="data.bin")
         self.assertEqual(len(chunks), 0)
+
+    def test_chunk_and_structure(self):
+        content = """
+import os
+class Test:
+    pass
+"""
+        path = self.create_test_file("test_struct.py", content)
+        chunks, structure = self.chunker.chunk_and_structure(path, rel_path="test_struct.py")
+        
+        self.assertTrue(len(chunks) > 0)
+        self.assertIsNotNone(structure)
+        self.assertEqual(structure.file_path, "test_struct.py")
+        self.assertEqual(structure.classes[0].name, "Test")
+        self.assertEqual(len(structure.imports), 1)
 
 if __name__ == '__main__':
     unittest.main()
