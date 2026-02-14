@@ -3,7 +3,7 @@ import json
 import os
 from typing import List, Dict, Optional, Any
 from pathlib import Path
-from backend.app.schemas import GraphNode, GraphEdge, NodeType, EdgeType, GraphData, FileStructure, ImportInfo, ClassInfo, FunctionInfo
+from ..schemas import GraphNode, GraphEdge, NodeType, EdgeType, GraphData, FileStructure, ImportInfo, ClassInfo, FunctionInfo
 
 class GraphService:
     def __init__(self, base_path: str = "backend/data/graphs"):
@@ -93,10 +93,18 @@ class GraphService:
             json.dump(data, f, indent=2)
 
     def delete_graph(self, project_id: str):
-        """Deletes the graph file and clears memory."""
-        path = self._get_graph_path(project_id)
-        if os.path.exists(path):
-            os.remove(path)
+        """Deletes the graph file, the tree file, and clears memory."""
+        # 1. Delete Graph JSON
+        graph_path = self._get_graph_path(project_id)
+        if os.path.exists(graph_path):
+            os.remove(graph_path)
+            
+        # 2. Delete Tree JSON
+        tree_path = os.path.join(self.base_path, f"{project_id}_tree.json")
+        if os.path.exists(tree_path):
+            os.remove(tree_path)
+
+        # 3. Clear Memory
         if project_id in self.graphs:
             del self.graphs[project_id]
         if project_id in self.file_maps:
@@ -249,3 +257,141 @@ class GraphService:
                             graph.add_edge(node_id, target_file, type=EdgeType.IMPORTS)
         
         self.save_graph(project_id)
+
+    def compute_node_importance(self, project_id: str) -> Dict[str, float]:
+        """
+        Computes the importance of each node using PageRank (or similar centrality).
+        Returns a dict of node_id -> score.
+        """
+        graph = self._get_or_create_graph(project_id)
+        if graph.number_of_nodes() == 0:
+            return {}
+
+        try:
+            # Pagerank is good for "global importance"
+            # We might want 'reverse pagerank' to see what is most depended upon (Utils)?
+            # Or standard pagerank to see what 'uses' the most things? 
+            # Actually, standard Pagerank: "Important nodes are referenced by other important nodes".
+            # For code, if A imports B, A depends on B. B is a dependency.
+            # If we want "High Level Modules" (Entry points), they have high OUT-degree, low IN-degree.
+            # If we want "Core Utils", they have high IN-degree.
+            
+            # For the Codemap, we want to sort by "Logical Priority".
+            # Usually Entry Points (API) -> Domain Logic -> Utilities.
+            # This aligns with Topological Sort somewhat.
+            
+            # Let's use a simple heuristic for now: In-Degree Centrality
+            # (How many files import me?)
+            scores = nx.in_degree_centrality(graph)
+            return scores
+        except Exception as e:
+            print(f"Error computing graph importance: {e}")
+            return {n: 0.0 for n in graph.nodes()}
+
+    def classify_node_layer(self, file_path: str) -> int:
+        """
+        Returns layer index:
+        0: Docs (README, .md)
+        1: API/Entry (main.py, api/, cli/)
+        2: Core Logic (services/, core/, managers/)
+        3: Data/Utils (models/, schemas/, utils/, lib/, common/)
+        4: Others
+        """
+        lower_path = file_path.lower()
+        
+        # Layer 0: Documentation
+        if lower_path.endswith('.md') or 'docs/' in lower_path:
+            return 0
+            
+        # Layer 1: Entry Points
+        if 'api/' in lower_path or 'routes' in lower_path or 'main.py' in lower_path or 'cli/' in lower_path or 'app.py' in lower_path:
+            return 1
+            
+        # Layer 3: Low level (checked before Layer 2 to catch schemas/models first)
+        if 'models/' in lower_path or 'schemas' in lower_path or 'utils/' in lower_path or 'lib/' in lower_path or 'common/' in lower_path or 'types' in lower_path or 'dto' in lower_path:
+            return 3
+            
+        # Layer 2: Core Logic (Default for code files not in above)
+        if 'services/' in lower_path or 'core/' in lower_path or 'managers/' in lower_path or 'logic/' in lower_path:
+            return 2
+            
+        return 4
+
+    def build_module_tree(self, project_id: str):
+        """
+        Constructs a hierarchical JSON tree of the project structure,
+        sorted by topological importance/layers.
+        Saves to <project_id>_tree.json.
+        """
+        graph = self._get_or_create_graph(project_id)
+        file_nodes = [n for n, attrs in graph.nodes(data=True) if attrs.get("type") == NodeType.FILE]
+        
+        importance_scores = self.compute_node_importance(project_id)
+        
+        # 1. Build basic directory tree structure
+        tree_root = {"id": "root", "name": "root", "type": "folder", "children": []}
+        
+        # Helper to find/create folder path
+        def get_folder_node(path_parts, current_node):
+            if not path_parts:
+                return current_node
+            
+            part = path_parts[0]
+            existing = next((c for c in current_node["children"] if c["name"] == part and c["type"] == "folder"), None)
+            
+            if not existing:
+                new_folder = {"id": f"{current_node['id']}/{part}", "name": part, "type": "folder", "children": []}
+                current_node["children"].append(new_folder)
+                existing = new_folder
+            
+            return get_folder_node(path_parts[1:], existing)
+
+        # 2. Populate Tree
+        for file_path in file_nodes:
+            parts = file_path.split("/")
+            filename = parts[-1]
+            folder_parts = parts[:-1]
+            
+            parent = get_folder_node(folder_parts, tree_root)
+            
+            layer = self.classify_node_layer(file_path)
+            score = importance_scores.get(file_path, 0)
+            
+            file_node = {
+                "id": file_path,
+                "name": filename,
+                "type": "file",
+                "layer": layer,
+                "importance": score,
+                "children": [] # Can add classes/functions here later if needed
+            }
+            parent["children"].append(file_node)
+
+        # 3. Recursive Sort
+        def sort_node(node):
+            # Sort children:
+            # Folders first, then Files? Or mixed?
+            # Let's keep Folders and Files mixed but sorted by importance logic.
+            # But usually users expect Folders at top or alphabetical.
+            # Let's do: Folders (Alphabetical), then Files (Sorted by Layer ASC, then Importance DESC)
+            
+            folders = [c for c in node["children"] if c["type"] == "folder"]
+            files = [c for c in node["children"] if c["type"] == "file"]
+            
+            folders.sort(key=lambda x: x["name"])
+            
+            # Sort files: Layer 0 -> 1 -> 2 -> 3. Inside layer: Importance High -> Low.
+            files.sort(key=lambda x: (x["layer"], -x["importance"]))
+            
+            node["children"] = folders + files
+            
+            for child in node["children"]:
+                if child["type"] == "folder":
+                    sort_node(child)
+
+        sort_node(tree_root)
+        
+        # Save Tree
+        tree_path = os.path.join(self.base_path, f"{project_id}_tree.json")
+        with open(tree_path, 'w') as f:
+            json.dump(tree_root, f, indent=2)

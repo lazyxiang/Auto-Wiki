@@ -4,7 +4,7 @@ from tree_sitter import Language, Parser, Node
 import tree_sitter_python
 import tree_sitter_typescript
 import tree_sitter_javascript
-from backend.app.schemas import FileStructure, ClassInfo, FunctionInfo, ImportInfo
+from ..schemas import FileStructure, ClassInfo, FunctionInfo, ImportInfo
 
 class CodeParser:
     def __init__(self):

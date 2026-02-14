@@ -112,6 +112,9 @@ class IngestionService:
         # Build edges after all files are processed
         self.graph_service.build_edges(project_id)
         
+        # Build hierarchical module tree
+        self.graph_service.build_module_tree(project_id)
+        
         # Get graph stats
         graph = self.graph_service._get_or_create_graph(project_id)
             

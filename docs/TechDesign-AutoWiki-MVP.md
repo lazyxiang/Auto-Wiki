@@ -127,6 +127,24 @@ Start with a lightweight in-memory graph construction (using a library like **Ne
 3. **Step C (Graph Build & Storage):**
     * Prompt: "Implement a function to update the dependency graph. It should add nodes from the parser results and resolve import paths to create `IMPORTS` edges between File nodes. Ensure the graph is persisted to the local data directory."
 
+### Feature 5: Intelligent Search & Codemap (RAG + Graph)
+
+**Complexity**: ⭐⭐⭐⭐⭐ (High)
+
+**Basis (PRD)**: "Top-down codemap view... Semantic search mixed with structural importance."
+
+**Implementation Strategy**:
+Instead of a simple flat list of search results, we will implement a "Codemap RAG" approach. This involves building a hierarchical tree of modules sorted by importance and displaying search results within this context.
+
+1.  **Step A (Graph Analysis & Importance):**
+    *   Prompt: "Enhance `GraphService` to calculate node importance (PageRank or In-degree centrality). Create a method to assign each file to a conceptual layer (0: Docs, 1: API Entry, 2: Core Services, 3: Utils/Data)."
+2.  **Step B (Hierarchical Tree Generation):**
+    *   Prompt: "Implement a `build_module_tree` function. It should traverse the file system but sort siblings based on the dependency graph (Topological Sort or Importance Score). Serialize this to `tree.json`."
+3.  **Step C (Hybrid Search Service):**
+    *   Prompt: "Create `SearchService` that performs Vector Search to get 'hits', then overlays these hits onto the Module Tree. Propagate 'active' states up to parent folders. Return the pruned tree structure JSON for the frontend."
+4.  **Step D (Frontend Codemap):**
+    *   Prompt: "Build a `CodemapTree` component in React. It should visualize the search results as an interactive tree, highlighting relevant paths and allowing users to drill down from Docs -> API -> Implementation."
+
 ## 🤖 AI Assistance & Audit Strategy
 
 ### How to Audit Code (Your "Architect" Role)

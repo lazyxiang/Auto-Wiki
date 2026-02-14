@@ -2,7 +2,7 @@ import hashlib
 import os
 from typing import List, Dict, Any, Optional, Tuple, Union
 from .parser import CodeParser
-from backend.app.schemas import FileStructure
+from ..schemas import FileStructure
 
 class CodeChunker:
     def __init__(self):
@@ -122,8 +122,9 @@ class CodeChunker:
     def _create_chunk(self, definition: Dict[str, Any], abs_path: str, rel_path: str, language: str) -> Dict[str, Any]:
         """Format a definition into a storage-ready chunk."""
         content = definition['code']
-        # Create a deterministic ID based on path + name + type
-        unique_str = f"{rel_path}:{definition['type']}:{definition['name']}"
+        # Create a deterministic ID based on path + name + type + start_line
+        # Adding start_line ensures uniqueness even for overloaded methods or same-name functions in different scopes
+        unique_str = f"{rel_path}:{definition['type']}:{definition['name']}:{definition['start_line']}"
         chunk_id = hashlib.md5(unique_str.encode('utf-8')).hexdigest()
 
         return {

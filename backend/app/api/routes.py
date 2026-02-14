@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.schemas import IngestRequest
-from app.services.ingestion import IngestionService
-from app.services.storage import VectorStorage
-from app.services.graph import GraphService
+from ..schemas import IngestRequest
+from ..services.ingestion import IngestionService
+from ..services.storage import VectorStorage
+from ..services.graph import GraphService
+from ..services.search import SearchService
 
 router = APIRouter()
 ingestion_service = IngestionService()
 storage_service = VectorStorage() 
 graph_service = GraphService()
+search_service = SearchService()
 
 @router.post("/ingest")
 def trigger_ingestion(request: IngestRequest):
@@ -25,13 +27,21 @@ def trigger_ingestion(request: IngestRequest):
 @router.get("/search")
 def search_code(q: str, project_id: str = Query(..., description="The project ID returned from ingestion"), limit: int = 5):
     """
-    Semantic search for code and documentation chunks within a specific project.
+    Semantic search + Codemap tree overlay.
+    Returns the module tree with search hits injected.
     """
     try:
-        results = storage_service.query_code(project_id, q, n_results=limit)
-        return {"results": results}
+        # New Search Service Logic
+        result = search_service.search(project_id, q, limit)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Fallback to simple vector search if something fails (or just raise)
+        print(f"Search Error: {e}")
+        try:
+             results = storage_service.query_code(project_id, q, n_results=limit)
+             return {"results": results, "fallback": True}
+        except Exception as inner_e:
+             raise HTTPException(status_code=500, detail=str(inner_e))
 
 @router.post("/clear")
 def clear_database(project_id: str = Query(..., description="The project ID to clear")):

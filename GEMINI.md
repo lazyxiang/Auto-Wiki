@@ -42,6 +42,7 @@ For complex tasks (e.g., "Build the dependency graph"), do not just give hints.
 - **Backend:** Keep routes thin. Move logic to `services/`.
 - **Frontend:** Use Server Components where possible.
 - **AgentScope:** Use this framework for the RAG orchestration.
+- **Comments:** Ensure all code comments are in English to maintain global maintainability.
 
 ## Specific Tech Constraints
 - **Parser:** Use `tree-sitter` bindings.

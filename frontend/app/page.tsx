@@ -1,28 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Loader2, Github, Trash2, FileText, Code } from "lucide-react";
+import { Search, Loader2, Github, Trash2, FileText, Code, FolderTree } from "lucide-react";
 import { searchCode, triggerIngest, clearDatabase } from "@/lib/api";
-import { SearchResult } from "@/lib/types";
+import { SearchResult, CodemapNode } from "@/lib/types";
+import CodemapTree from "@/components/CodemapTree"; // Assuming this is where it's saved
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  // const [results, setResults] = useState<SearchResult[]>([]); // Deprecated for flat list
+  const [tree, setTree] = useState<CodemapNode | null>(null);
   const [loading, setLoading] = useState(false);
   
   // Ingestion state
   const [repoUrl, setRepoUrl] = useState("");
   const [ingesting, setIngesting] = useState(false);
   const [ingestStats, setIngestStats] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
+    if (!projectId) {
+      alert("Please ingest a project first to search.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const data = await searchCode(query);
-      setResults(data);
+      const data = await searchCode(query, projectId);
+      if (data.tree) {
+          setTree(data.tree);
+      } else {
+          // Fallback or error handling
+          setTree(null);
+      }
     } catch (error) {
       console.error(error);
       alert("Search failed. Ensure backend is running.");
@@ -39,8 +51,10 @@ export default function Home() {
 
     setIngesting(true);
     setIngestStats(null);
+    setTree(null); // Clear previous tree
     try {
       const stats = await triggerIngest(repoUrl);
+      setProjectId(stats.project_id); // Store project ID for search
       setIngestStats(
         `Ingested ${stats.files_processed} files (${stats.code_files} code, ${stats.doc_files} docs) ` +
         `generating ${stats.chunks_generated} chunks (${stats.code_chunks} code, ${stats.doc_chunks} docs).`
@@ -57,10 +71,13 @@ export default function Home() {
   const handleClear = async () => {
     if (!confirm("Are you sure you want to clear all indexed data? This cannot be undone.")) return;
     try {
-      const { deleted_count } = await clearDatabase();
-      alert(`Successfully cleared ${deleted_count} chunks.`);
-      setResults([]);
+      if (projectId) {
+          const { deleted_count } = await clearDatabase(projectId);
+          alert(`Successfully cleared project data.`);
+      }
+      setTree(null);
       setIngestStats(null);
+      setProjectId(null);
     } catch (error) {
       alert("Failed to clear database.");
     }
@@ -82,13 +99,14 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <button 
               onClick={handleClear}
-              className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors bg-slate-900 px-3 py-1.5 rounded-md border border-slate-800"
+              disabled={!projectId}
+              className="text-xs text-slate-500 hover:text-red-400 disabled:opacity-50 flex items-center gap-1 transition-colors bg-slate-900 px-3 py-1.5 rounded-md border border-slate-800"
             >
-              <Trash2 className="w-3 h-3" /> Clear DB
+              <Trash2 className="w-3 h-3" /> Clear Project
             </button>
             <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              System Online
+              <div className={`w-2 h-2 rounded-full ${projectId ? "bg-emerald-500 animate-pulse" : "bg-slate-600"}`} />
+              {projectId ? "Project Active" : "No Project Loaded"}
             </div>
           </div>
         </header>
@@ -132,8 +150,9 @@ export default function Home() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search code or documentation..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-lg focus:ring-2 focus:ring-teal-500/50 outline-none shadow-xl transition-all placeholder:text-slate-600"
+              disabled={!projectId}
+              placeholder={projectId ? "Search code or documentation..." : "Import a project first..."}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-lg focus:ring-2 focus:ring-teal-500/50 outline-none shadow-xl transition-all placeholder:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </form>
 
@@ -143,49 +162,18 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {results.map((result) => (
-                <div
-                  key={result.id}
-                  className="group bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-900/10 transition-all"
-                >
-                  {/* Metadata Header */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded-md border ${
-                        result.metadata.type === 'documentation' 
-                        ? 'bg-amber-950/30 border-amber-900/50 text-amber-400' 
-                        : 'bg-teal-950/30 border-teal-900/50 text-teal-400'
-                      }`}>
-                        {result.metadata.type === 'documentation' ? <FileText className="w-4 h-4"/> : <Code className="w-4 h-4"/>}
+              {/* Codemap Tree View */}
+              {tree && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                      <div className="flex items-center gap-2 mb-4 text-slate-400 text-sm font-medium border-b border-slate-800 pb-2">
+                          <FolderTree className="w-4 h-4" />
+                          <span>Project Codemap</span>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-200 group-hover:text-teal-400 transition-colors">
-                          {result.metadata.name}
-                        </h3>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          {result.metadata.file_path}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[10px] text-slate-400 font-mono bg-slate-800 px-2 py-1 rounded border border-slate-700">
-                          Lines {result.metadata.start_line} - {result.metadata.end_line}
-                       </span>
-                    </div>
+                      <CodemapTree node={tree} />
                   </div>
-                  
-                  {/* Content Area */}
-                  <div className="relative">
-                    <pre className={`text-xs md:text-sm text-slate-400 font-mono bg-slate-950/50 p-4 rounded-lg border border-slate-800/50 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent ${
-                      result.metadata.type === 'documentation' ? 'whitespace-pre-wrap' : 'overflow-x-auto'
-                    }`}>
-                      <code>{result.content}</code>
-                    </pre>
-                  </div>
-                </div>
-              ))}
+              )}
               
-              {results.length === 0 && query && !loading && (
+              {!tree && query && !loading && projectId && (
                 <div className="text-center py-12 text-slate-500">
                   No matches found for "{query}"
                 </div>
